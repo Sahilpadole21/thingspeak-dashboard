@@ -6,15 +6,15 @@ import plotly.graph_objects as go
 channels = [
     {
         "name": "Channel 1 - Field 1",
-        "channel_id": "123456",
-        "api_key": "ABCDEF1234567890",
+        "channel_id": "2997622",
+        "api_key": "P8X877UO7IHF2HI4",
         "field": "field1",
         "color": "red"
     },
     {
         "name": "Channel 2 - Field 2",
-        "channel_id": "654321",
-        "api_key": "ZYXWV9876543210",
+        "channel_id": "2991850",
+        "api_key": "UK4DMEZEVVJB711E",
         "field": "field2",
         "color": "blue"
     }
