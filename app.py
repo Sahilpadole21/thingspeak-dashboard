@@ -5,9 +5,39 @@ from datetime import datetime, timedelta
 import pytz
 import pandas as pd
 from streamlit_autorefresh import st_autorefresh
-from io import StringIO
 
-# --- Channel Configuration ---
+# --- Password (used only for protected actions) ---
+PASSWORD = "YOUR_PASSWORD_HERE"
+authenticated = st.session_state.get("authenticated", False)
+
+# --- Streamlit Config ---
+st.set_page_config(page_title="Urban Drainage Dashboard", layout="wide")
+
+# --- Sidebar: Time & Options (No password needed) ---
+st.sidebar.title("🔧 Visualization Controls")
+
+today = datetime.now()
+default_start = today - timedelta(days=1)
+start_date = st.sidebar.date_input("📅 Start Date", default_start.date())
+end_date = st.sidebar.date_input("📅 End Date", today.date())
+
+refresh_interval = st.sidebar.selectbox("🔁 Auto Refresh Interval (min)", [None, 1, 2, 5], index=2)
+if refresh_interval:
+    from streamlit_autorefresh import st_autorefresh
+    st_autorefresh(interval=refresh_interval * 60 * 1000, key="autorefresh")
+
+threshold = st.sidebar.number_input("🚨 Water Level Threshold", min_value=0.0, value=100.0)
+rolling_window = st.sidebar.number_input("📊 Rolling Mean Window", min_value=1, max_value=100, value=5)
+
+# --- Sensor Config (requires password) ---
+st.sidebar.markdown("### 🔐 Advanced Config (Password Required)")
+pw_attempt = st.sidebar.text_input("Enter Password", type="password")
+if pw_attempt == PASSWORD:
+    st.sidebar.success("Unlocked ✅")
+    authenticated = True
+    st.session_state.authenticated = True
+
+# Default channels
 channels = [
     {
         "name": "Drain Water Level (10 min)",
@@ -31,134 +61,93 @@ channels = [
     }
 ]
 
-# --- Sidebar Controls ---
-st.sidebar.title("🔧 Dashboard Controls")
+# Allow editing only if authenticated
+if authenticated:
+    for ch in channels:
+        with st.sidebar.expander(f"🔌 Edit {ch['name']}"):
+            ch["channel_id"] = st.text_input(f"Channel ID", value=ch["channel_id"], key=f"id_{ch['id']}")
+            ch["api_key"] = st.text_input(f"API Key", value=ch["api_key"], key=f"key_{ch['id']}")
+            ch["field"] = st.selectbox(f"Field", ["field1", "field2", "field3", "field4"], index=int(ch["field"][-1]) - 1, key=f"field_{ch['id']}")
 
-# Date range
-today = datetime.now()
-default_start = today - timedelta(days=1)
-start_date = st.sidebar.date_input("Start Date", default_start.date())
-end_date = st.sidebar.date_input("End Date", today.date())
-
-# Auto-refresh
-refresh_interval = st.sidebar.selectbox("Auto Refresh Interval (min)", [None, 1, 2, 5], index=2)
-if refresh_interval:
-    st_autorefresh(interval=refresh_interval * 60 * 1000, key="autorefresh")
-
-# Water level threshold
-custom_threshold = st.sidebar.number_input("🚨 Water Level Alert Threshold", min_value=0.0, value=100.0)
-
-# Rolling mean window for water level
-rolling_window = st.sidebar.number_input("📊 Rolling Mean Window (Water Level)", min_value=1, max_value=100, value=5)
-
-st.sidebar.markdown("### 🔍 Sensor Display Options")
-
-# Per-sensor toggles
+# --- Display Options ---
+st.sidebar.markdown("### 👁️ Show/Hide Lines")
 sensor_display = {}
 for ch in channels:
     with st.sidebar.expander(ch["name"]):
-        show_raw = st.checkbox(f"Show Raw Data", value=True, key=f"raw_{ch['id']}")
-        show_roll = False
-        if ch["apply_rolling_mean"]:
-            show_roll = st.checkbox(f"Show Rolling Mean", value=True, key=f"roll_{ch['id']}")
+        show_raw = st.checkbox("Show Raw", value=True, key=f"raw_{ch['id']}")
+        show_roll = ch["apply_rolling_mean"] and st.checkbox("Show Rolling Mean", value=True, key=f"roll_{ch['id']}")
         sensor_display[ch["id"]] = {"raw": show_raw, "roll": show_roll}
 
-# --- Time range setup ---
+# --- Time range formatting ---
 start_dt = datetime.combine(start_date, datetime.min.time())
 end_dt = datetime.combine(end_date, datetime.max.time())
 start_str = start_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 # --- Title ---
-st.title("🌧️ Urban Drainage Insight Server")
+st.title("🌧️ Urban Drainage Insight Dashboard")
 st.write(f"Showing data from **{start_date}** to **{end_date}**")
 
-# --- Initialize Plot ---
+# --- Fetch & Plot ---
 fig = go.Figure()
-download_data = {}
+combined_df = pd.DataFrame()
 
-# --- Fetch and Plot Data ---
 for ch in channels:
-    url = f"https://api.thingspeak.com/channels/{ch['channel_id']}/fields/{ch['field'][-1]}.json"
-    params = {"api_key": ch["api_key"], "start": start_str, "end": end_str}
-
     try:
-        res = requests.get(url, params=params)
-        data = res.json()
-        feeds = data.get("feeds", [])
+        url = f"https://api.thingspeak.com/channels/{ch['channel_id']}/fields/{ch['field'][-1]}.json"
+        res = requests.get(url, params={"api_key": ch["api_key"], "start": start_str, "end": end_str})
+        feeds = res.json().get("feeds", [])
         if not feeds:
-            st.warning(f"No data in selected range for {ch['name']}")
+            st.warning(f"No data for {ch['name']}")
             continue
 
-        # Parse time and values
         ist = pytz.timezone('Asia/Kolkata')
-        times = [datetime.strptime(entry["created_at"], "%Y-%m-%dT%H:%M:%SZ")
-                 .replace(tzinfo=pytz.utc).astimezone(ist) for entry in feeds]
+        times = [datetime.strptime(entry["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.utc).astimezone(ist) for entry in feeds]
         values = [float(entry.get(ch["field"], 0)) for entry in feeds]
-        df = pd.DataFrame({"Time (IST)": times, "Value": values})
 
-        # Rolling mean if enabled
+        df = pd.DataFrame({"Time (IST)": times, f"{ch['name']}": values})
+
         if ch["apply_rolling_mean"]:
-            df["Rolling Mean"] = df["Value"].rolling(window=rolling_window, min_periods=1).mean()
-            if sensor_display[ch["id"]]["roll"]:
-                fig.add_trace(go.Scatter(
-                    x=df["Time (IST)"],
-                    y=df["Rolling Mean"],
-                    mode="lines+markers",
-                    name=f"{ch['name']} (Rolling Mean)",
-                    line=dict(color="orange", dash='dot')
-                ))
+            df[f"{ch['name']} - Rolling Mean"] = df[f"{ch['name']}"].rolling(window=rolling_window, min_periods=1).mean()
 
-        # Raw data plot if enabled
+        # Merge
+        if combined_df.empty:
+            combined_df = df
+        else:
+            combined_df = pd.merge(combined_df, df, on="Time (IST)", how="outer")
+
+        # Graph lines
         if sensor_display[ch["id"]]["raw"]:
-            fig.add_trace(go.Scatter(
-                x=df["Time (IST)"],
-                y=df["Value"],
-                mode="lines+markers",
-                name=ch["name"],
-                line=dict(color=ch["color"])
-            ))
+            fig.add_trace(go.Scatter(x=df["Time (IST)"], y=df[f"{ch['name']}"],
+                                     mode="lines+markers", name=ch["name"],
+                                     line=dict(color=ch["color"])))
 
-        # Alert for water level
-        if ch.get("is_water_level"):
-            below_threshold = df[df["Value"] < custom_threshold]
-            if not below_threshold.empty:
-                last_alert = below_threshold.iloc[-1]
-                alert_time = last_alert["Time (IST)"].strftime("%Y-%m-%d %H:%M:%S")
-                alert_value = last_alert["Value"]
-                st.error(f"🚨 ALERT: Water level dropped to **{alert_value:.2f}** at **{alert_time}** (Threshold: {custom_threshold})")
+        if ch["apply_rolling_mean"] and sensor_display[ch["id"]]["roll"]:
+            fig.add_trace(go.Scatter(x=df["Time (IST)"], y=df[f"{ch['name']} - Rolling Mean"],
+                                     mode="lines+markers", name=f"{ch['name']} (Rolling)",
+                                     line=dict(color="orange", dash="dot")))
 
-            fig.add_hline(
-                y=custom_threshold,
-                line=dict(color="red", dash="dash"),
-                annotation_text=f"Threshold: {custom_threshold}",
-                annotation_position="top left"
-            )
+        # Alert
+        if ch["is_water_level"]:
+            below = df[df[f"{ch['name']}"] < threshold]
+            if not below.empty:
+                last = below.iloc[-1]
+                st.error(f"🚨 ALERT: **{ch['name']}** = **{last[f'{ch['name']}']:.2f}** at {last['Time (IST)']}")
 
-        download_data[ch["name"]] = df
-        st.success(f"{ch['name']}: Loaded {len(df)} data points.")
+            fig.add_hline(y=threshold, line=dict(color="red", dash="dash"),
+                          annotation_text=f"Threshold: {threshold}",
+                          annotation_position="top left")
 
     except Exception as e:
         st.error(f"Error loading {ch['name']}: {e}")
 
-# --- Final Graph Layout ---
-fig.update_layout(
-    title="📈 Sensor Readings",
-    xaxis_title="Time (IST)",
-    yaxis_title="Sensor Value",
-    legend_title="Sensor",
-    hovermode="x unified"
-)
-
+# --- Plot ---
+fig.update_layout(title="📈 Sensor Graphs", xaxis_title="Time (IST)",
+                  yaxis_title="Sensor Value", hovermode="x unified")
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Download CSV ---
-st.subheader("📥 Download Sensor Data (CSV)")
-for name, df in download_data.items():
-    csv = df.to_csv(index=False)
-    st.download_button(
-        label=f"Download {name} CSV",
-        data=csv,
-        file_name=f"{name.replace(' ', '_').lower()}_data.csv",
-        mime='text/csv'
-    )
+# --- CSV Download (authenticated only) ---
+if authenticated and not combined_df.empty:
+    st.subheader("📥 Download Combined Sensor Data (CSV)")
+    csv = combined_df.sort_values("Time (IST)").to_csv(index=False)
+    st.download_button("Download CSV", data=csv, file_name="combined_data.csv", mime="text/csv")
