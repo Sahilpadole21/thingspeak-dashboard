@@ -49,7 +49,7 @@ channels = [
         "api_key": "P8X877UO7IHF2HI4",
         "field": "field1",
         "color": "red",
-        "apply_rolling_mean": True,
+        "apply_rolling_mean": authenticated,  # Rolling mean only if authenticated
         "is_water_level": True,
         "id": "water"
     },
@@ -69,7 +69,7 @@ channels = [
         "api_key": "P8X877UO7IHF2HI4",
         "field": "field2",
         "color": "green",
-        "apply_rolling_mean": True,
+        "apply_rolling_mean": authenticated,  # Rolling mean only if authenticated
         "is_water_level": False,
         "id": "temp"
     }
