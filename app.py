@@ -114,14 +114,20 @@ for ch in channels:
         res = requests.get(url, params={"api_key": ch["api_key"], "start": start_str, "end": end_str})
         feeds = res.json().get("feeds", [])
 
-        # Slice for drainage water channel
+        original_len = len(feeds)
+        current_reading = original_len
+
+        # For water channel: show reading info and slice if >= 223
         if ch["id"] == "water":
-            original_len = len(feeds)
-            feeds = feeds[222:]
-            current_reading = 173
-            remaining = current_reading - 222
-            st.info(f"📍 Drainage Current Reading: **{current_reading}**, Remaining from 222: **{remaining}**")
-            st.info(f"🔍 Showing {len(feeds)} readings from 222 to {original_len}")
+            remaining = 222 - current_reading
+            st.info(f"📍 Drainage Water Level Readings: **{current_reading}**")
+            st.info(f"🔁 Remaining to reach 222: **{remaining if remaining > 0 else 0}**")
+
+            if original_len >= 223:
+                feeds = feeds[222:]
+                st.info(f"🔍 Showing {len(feeds)} readings from index 222 to {original_len}")
+            else:
+                st.warning(f"⚠️ Not enough data — only {original_len} readings available.")
 
         ist = pytz.timezone('Asia/Kolkata')
         times = []
@@ -134,7 +140,7 @@ for ch in channels:
                 val = float(raw_val)
                 timestamp = datetime.strptime(entry["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.utc).astimezone(ist)
 
-                # Outlier removal
+                # Outlier removal: skip if change > ±20
                 if prev_val is None or abs(val - prev_val) <= 20:
                     times.append(timestamp)
                     values.append(val)
