@@ -118,7 +118,7 @@ for ch in channels:
         current_reading = original_len
 
         if ch["id"] == "water":
-            if original_len >= 223:
+            if original_len >= 223 and start_date == end_date:
                 feeds = feeds[222:]
 
         ist = pytz.timezone('Asia/Kolkata')
