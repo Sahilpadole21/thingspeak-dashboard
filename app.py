@@ -117,7 +117,6 @@ for ch in channels:
         original_len = len(feeds)
         current_reading = original_len
 
-        # For water channel: slice if >= 223
         if ch["id"] == "water":
             if original_len >= 223:
                 feeds = feeds[222:]
@@ -145,9 +144,9 @@ for ch in channels:
             st.warning(f"No valid data for {ch['name']}")
             continue
 
-        df = pd.DataFrame({"Time (IST)": times, f"{ch['name']}": values})
+        df = pd.DataFrame({"Time (IST)": times, ch["name"]: values})
         if ch["apply_rolling_mean"]:
-            df[f"{ch['name']} - Rolling Mean"] = df[f"{ch['name']}"].rolling(window=rolling_window, min_periods=1).mean()
+            df[f"{ch['name']} - Rolling Mean"] = df[ch["name"]].rolling(window=rolling_window, min_periods=1).mean()
 
         if combined_df.empty:
             combined_df = df
@@ -157,7 +156,7 @@ for ch in channels:
         if sensor_display[ch["id"]]["raw"]:
             fig.add_trace(go.Scatter(
                 x=df["Time (IST)"],
-                y=df[f"{ch['name']}`"],
+                y=df[ch["name"]],
                 mode="lines+markers",
                 name=ch["name"],
                 line=dict(color=ch["color"])
@@ -173,10 +172,10 @@ for ch in channels:
             ))
 
         if ch["is_water_level"]:
-            alerts = df[df[f"{ch['name']}"] >= threshold]
+            alerts = df[df[ch["name"]] >= threshold]
             if not alerts.empty:
                 last = alerts.iloc[-1]
-                st.error(f"🚨 ALERT: **{ch['name']}** = **{last[f'{ch['name']}']:.2f} cm** at {last['Time (IST)']}")
+                st.error(f"🚨 ALERT: **{ch['name']}** = **{last[ch['name']]:.2f} cm** at {last['Time (IST)']}")
             fig.add_hline(y=threshold, line=dict(color="red", dash="dash"),
                           annotation_text=f"Threshold: {threshold} cm",
                           annotation_position="top left")
