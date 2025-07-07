@@ -17,8 +17,8 @@ st.sidebar.title("🔧 Visualization Controls")
 
 today = datetime.now()
 default_start = today - timedelta(days=1)
-start_date = st.sidebar.date_input("📅 Start Date", default_start.date())
-end_date = st.sidebar.date_input("📅 End Date", today.date())
+start_date = st.sidebar.date_input("🗕️ Start Date", default_start.date())
+end_date = st.sidebar.date_input("🗕️ End Date", today.date())
 
 refresh_interval = st.sidebar.selectbox("🔁 Auto Refresh Interval (min)", [None, 1, 2, 5], index=2)
 if refresh_interval:
@@ -44,7 +44,7 @@ else:
 # --- Channels Config ---
 channels = [
     {
-        "name": "Drain Water Level (cm)",
+        "name": "Drain Water Fill Level (cm)",
         "channel_id": "2997622",
         "api_key": "P8X877UO7IHF2HI4",
         "field": "field1",
@@ -117,17 +117,10 @@ for ch in channels:
         original_len = len(feeds)
         current_reading = original_len
 
-        # For water channel: show reading info and slice if >= 223
+        # For water channel: slice if >= 223
         if ch["id"] == "water":
-            remaining = 222 - current_reading
-            st.info(f"📍 Drainage Water Level Readings: **{current_reading}**")
-            st.info(f"🔁 Remaining to reach 222: **{remaining if remaining > 0 else 0}**")
-
             if original_len >= 223:
                 feeds = feeds[222:]
-                st.info(f"🔍 Showing {len(feeds)} readings from index 222 to {original_len}")
-            else:
-                st.warning(f"⚠️ Not enough data — only {original_len} readings available.")
 
         ist = pytz.timezone('Asia/Kolkata')
         times = []
@@ -137,10 +130,10 @@ for ch in channels:
         for entry in feeds:
             raw_val = entry.get(ch["field"])
             try:
-                val = float(raw_val)
+                raw_float = float(raw_val)
+                val = 222 - raw_float if ch["id"] == "water" else raw_float
                 timestamp = datetime.strptime(entry["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.utc).astimezone(ist)
 
-                # Outlier removal: skip if change > ±20
                 if prev_val is None or abs(val - prev_val) <= 20:
                     times.append(timestamp)
                     values.append(val)
@@ -161,17 +154,15 @@ for ch in channels:
         else:
             combined_df = pd.merge(combined_df, df, on="Time (IST)", how="outer")
 
-        # Raw data plot
         if sensor_display[ch["id"]]["raw"]:
             fig.add_trace(go.Scatter(
                 x=df["Time (IST)"],
-                y=df[f"{ch['name']}"],
+                y=df[f"{ch['name']}`"],
                 mode="lines+markers",
                 name=ch["name"],
                 line=dict(color=ch["color"])
             ))
 
-        # Rolling mean plot
         if ch["apply_rolling_mean"] and sensor_display[ch["id"]]["roll"]:
             fig.add_trace(go.Scatter(
                 x=df["Time (IST)"],
@@ -181,7 +172,6 @@ for ch in channels:
                 line=dict(color="orange", dash="dot")
             ))
 
-        # Alert
         if ch["is_water_level"]:
             alerts = df[df[f"{ch['name']}"] >= threshold]
             if not alerts.empty:
@@ -205,6 +195,6 @@ st.plotly_chart(fig, use_container_width=True)
 
 # --- Download CSV ---
 if authenticated and not combined_df.empty:
-    st.subheader("📥 Download Combined Sensor Data")
+    st.subheader("📅 Download Combined Sensor Data")
     csv = combined_df.sort_values("Time (IST)").to_csv(index=False)
     st.download_button("Download CSV", data=csv, file_name="combined_data.csv", mime="text/csv")
