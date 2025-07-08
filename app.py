@@ -5,7 +5,6 @@ from datetime import datetime, timedelta
 import pytz
 import pandas as pd
 from streamlit_autorefresh import st_autorefresh
-from functools import reduce
 
 # --- Password Setup ---
 PASSWORD = "Sahil@9573"
@@ -76,7 +75,6 @@ channels = [
     }
 ]
 
-# Editable if authenticated
 if authenticated:
     for ch in channels:
         with st.sidebar.expander(f"🔌 Edit {ch['name']}"):
@@ -160,3 +158,34 @@ for ch in channels:
 
 fig.update_layout(title="📊 Sensor Readings Over Time", xaxis_title="Time (IST)", yaxis_title="Sensor Value (cm / mm / °C)", hovermode="x unified")
 st.plotly_chart(fig, use_container_width=True)
+
+# --- Second Graph: Rain Water Collection ---
+st.header("🚿 Rain Water Collection")
+try:
+    rain_url = "https://api.thingspeak.com/channels/2991850/fields/2.json"
+    rain_res = requests.get(rain_url, params={"api_key": "UK4DMEZEVVJB711E", "start": start_str, "end": end_str})
+    rain_data = rain_res.json().get("feeds", [])
+    ist = pytz.timezone('Asia/Kolkata')
+
+    rain_times = []
+    rain_values = []
+
+    for entry in rain_data:
+        try:
+            rain_val = float(entry.get("field2"))
+            timestamp = datetime.strptime(entry["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.utc).astimezone(ist)
+            rain_times.append(timestamp)
+            rain_values.append(rain_val)
+        except:
+            continue
+
+    if rain_times and rain_values:
+        rain_fig = go.Figure()
+        rain_fig.add_trace(go.Scatter(x=rain_times, y=rain_values, mode="lines+markers", name="Rainfall (mm)", line=dict(color="blue")))
+        rain_fig.update_layout(title="💧 Rain Water Collection Over Time", xaxis_title="Time (IST)", yaxis_title="Rainfall (mm)", hovermode="x unified")
+        st.plotly_chart(rain_fig, use_container_width=True)
+    else:
+        st.info("No rain data available for selected date range.")
+
+except Exception as e:
+    st.error(f"Error loading rain collection graph: {e}")
