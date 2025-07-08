@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pytz
 import pandas as pd
 from streamlit_autorefresh import st_autorefresh
+from functools import reduce
 
 # --- Password Setup ---
 PASSWORD = "Sahil@9573"
@@ -12,7 +13,7 @@ authenticated = st.session_state.get("authenticated", False)
 
 st.set_page_config(page_title="Urban Drainage Dashboard", layout="wide")
 
-# --- Sidebar: Public Controls ---
+# --- Sidebar ---
 st.sidebar.title("🔧 Visualization Controls")
 
 today = datetime.now()
@@ -32,7 +33,7 @@ if pw_attempt == PASSWORD:
     authenticated = True
     st.session_state.authenticated = True
 
-# --- Threshold & Rolling Mean (only editable if authenticated) ---
+# --- Threshold & Rolling Mean ---
 if authenticated:
     threshold = st.sidebar.number_input("🚨 Water Level Threshold (cm)", min_value=0.0, value=100.0)
     rolling_window = st.sidebar.number_input("📊 Rolling Mean Window", min_value=1, max_value=100, value=5)
@@ -41,7 +42,7 @@ else:
     rolling_window = 3
     st.sidebar.info("🔐 Threshold & Rolling Mean are locked (enter password to edit)")
 
-# --- Channels Config ---
+# --- Channel Configs ---
 channels = [
     {
         "name": "Drain Water Fill Level (cm)",
@@ -75,7 +76,7 @@ channels = [
     }
 ]
 
-# --- Editable Config ---
+# Editable if authenticated
 if authenticated:
     for ch in channels:
         with st.sidebar.expander(f"🔌 Edit {ch['name']}"):
@@ -84,7 +85,7 @@ if authenticated:
             ch["field"] = st.selectbox("Field", ["field1", "field2", "field3", "field4"],
                                        index=int(ch["field"][-1]) - 1, key=f"field_{ch['id']}")
 
-# --- Sensor Display Toggle ---
+# --- Show/Hide Controls ---
 st.sidebar.markdown("### 👁️ Show/Hide Lines")
 sensor_display = {}
 for ch in channels:
@@ -93,7 +94,7 @@ for ch in channels:
         show_roll = ch["apply_rolling_mean"] and st.checkbox("Show Rolling Mean", value=True, key=f"roll_{ch['id']}")
         sensor_display[ch["id"]] = {"raw": show_raw, "roll": show_roll}
 
-# --- Time Range ---
+# --- Time Range Formatting ---
 start_dt = datetime.combine(start_date, datetime.min.time())
 end_dt = datetime.combine(end_date, datetime.max.time())
 start_str = start_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -103,6 +104,7 @@ end_str = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 st.title("🌧️ Urban Drainage Insight Dashboard")
 st.write(f"Showing data from **{start_date}** to **{end_date}**")
 
+# --- First Graph ---
 fig = go.Figure()
 combined_df = pd.DataFrame()
 
@@ -111,10 +113,8 @@ for ch in channels:
         url = f"https://api.thingspeak.com/channels/{ch['channel_id']}/fields/{ch['field'][-1]}.json"
         res = requests.get(url, params={"api_key": ch["api_key"], "start": start_str, "end": end_str})
         feeds = res.json().get("feeds", [])
-
         ist = pytz.timezone('Asia/Kolkata')
-        times = []
-        values = []
+        times, values = [], []
         prev_val = None
 
         for entry in feeds:
@@ -143,14 +143,17 @@ for ch in channels:
             fig.add_trace(go.Scatter(x=df["Time (IST)"], y=df[ch["name"]], mode="lines+markers", name=ch["name"], line=dict(color=ch["color"])))
 
         if ch["apply_rolling_mean"] and sensor_display[ch["id"]]["roll"]:
-            fig.add_trace(go.Scatter(x=df["Time (IST)"], y=df[f"{ch['name']} - Rolling Mean"], mode="lines+markers", name=f"{ch['name']} (Rolling Avg)", line=dict(color="orange", dash="dot")))
+            fig.add_trace(go.Scatter(x=df["Time (IST)"], y=df[f"{ch['name']} - Rolling Mean"],
+                                     mode="lines+markers", name=f"{ch['name']} (Rolling Avg)",
+                                     line=dict(color="orange", dash="dot")))
 
         if ch["is_water_level"]:
             alerts = df[df[ch["name"]] >= threshold]
             if not alerts.empty:
                 last = alerts.iloc[-1]
                 st.error(f"🚨 ALERT: **{ch['name']}** = **{last[ch['name']]:.2f} cm** at {last['Time (IST)']}")
-            fig.add_hline(y=threshold, line=dict(color="red", dash="dash"), annotation_text=f"Threshold: {threshold} cm", annotation_position="top left")
+            fig.add_hline(y=threshold, line=dict(color="red", dash="dash"),
+                          annotation_text=f"Threshold: {threshold} cm", annotation_position="top left")
 
     except Exception as e:
         st.error(f"Error loading {ch['name']}: {e}")
@@ -158,7 +161,7 @@ for ch in channels:
 fig.update_layout(title="📊 Sensor Readings Over Time", xaxis_title="Time (IST)", yaxis_title="Sensor Value (cm / mm / °C)", hovermode="x unified")
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Volume and Flowrate Analysis ---
+# --- Second Graph: Rain Water Collection ---
 st.markdown("## 🌧️ Rain Water Collection")
 
 fields_info = [
@@ -176,7 +179,6 @@ fields_info = [
     {"channel_id": "2991850", "api_key": "UK4DMEZEVVJB711E", "field": 2, "label": "Rainfall (mm)"}
 ]
 
-# Fetch helper
 def fetch_field(cid, key, field, start, end, label):
     try:
         url = f"https://api.thingspeak.com/channels/{cid}/fields/{field}.json"
@@ -197,8 +199,8 @@ def fetch_field(cid, key, field, start, end, label):
     except:
         return pd.DataFrame()
 
+# Combine & plot
 all_dataframes = [fetch_field(f["channel_id"], f["api_key"], f["field"], start_str, end_str, f["label"]) for f in fields_info]
-from functools import reduce
 if all_dataframes:
     df_combined = reduce(lambda left, right: pd.merge(left, right, on="Time (IST)", how="outer"), all_dataframes)
     df_combined.sort_values("Time (IST)", inplace=True)
@@ -208,15 +210,16 @@ if all_dataframes:
     df_combined["Flowrate"] = df_combined[["ch1_f1", "ch1_f3", "ch1_f5", "ch2_f1", "ch2_f3", "ch2_f5", "ch2_f7"]].sum(axis=1)
 
     fig2 = go.Figure()
-    fig2.add_trace(go.Scatter(x=df_combined["Time (IST)"], y=df_combined["Total Volume"], mode="lines+markers", name="Total Volume (litres)", line=dict(color="blue")))
-    fig2.add_trace(go.Scatter(x=df_combined["Time (IST)"], y=df_combined["Flowrate"], mode="lines+markers", name="Flowrate (litres/sec)", line=dict(color="green")))
+    fig2.add_trace(go.Scatter(x=df_combined["Time (IST)"], y=df_combined["Total Volume"], name="Total Volume (litres)", mode="lines+markers", line=dict(color="blue")))
+    fig2.add_trace(go.Scatter(x=df_combined["Time (IST)"], y=df_combined["Flowrate"], name="Flowrate (litres/sec)", mode="lines+markers", line=dict(color="green")))
     if "Rainfall (mm)" in df_combined.columns:
-        fig2.add_trace(go.Scatter(x=df_combined["Time (IST)"], y=df_combined["Rainfall (mm)"], mode="lines+markers", name="Rainfall (mm)", line=dict(color="purple")))
+        fig2.add_trace(go.Scatter(x=df_combined["Time (IST)"], y=df_combined["Rainfall (mm)"], name="Rainfall (mm)", mode="lines+markers", line=dict(color="purple")))
 
-    fig2.update_layout(title="🌧️ Rain Water Collection: Volume, Flowrate & Rainfall Over Time", xaxis_title="Time (IST)", yaxis_title="Sensor Values", hovermode="x unified")
+    fig2.update_layout(title="🌧️ Rain Water Collection: Volume, Flowrate & Rainfall Over Time",
+                       xaxis_title="Time (IST)", yaxis_title="Sensor Values", hovermode="x unified")
     st.plotly_chart(fig2, use_container_width=True)
 
-# --- CSV Download ---
+# --- CSV Download for First Graph ---
 if authenticated and not combined_df.empty:
     st.subheader("🗓️ Download Combined Sensor Data")
     csv = combined_df.sort_values("Time (IST)").to_csv(index=False)
