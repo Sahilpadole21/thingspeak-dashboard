@@ -176,7 +176,7 @@ def plot_device_data(device, start_str, end_str, rolling_window, sensor_display)
                     val = ch.get("water_level_calc", lambda x: x)(raw_float) if ch["id"] == "water" else raw_float
                     timestamp = datetime.strptime(entry["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.utc).astimezone(ist)
 
-                    if prev_val is None or abs(val - prev_val) <= 20:
+                    if prev_val is None or abs(val - prev_val) <= 15:
                         times.append(timestamp)
                         values.append(val)
                         prev_val = val
