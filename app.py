@@ -161,8 +161,8 @@ def plot_device_data(device, start_str, end_str, rolling_window, sensor_display)
             feeds = res.json().get("feeds", [])
 
             original_len = len(feeds)
-            if ch["id"] == "water" and original_len >= 223 and start_date == end_date:
-                feeds = feeds[222:]
+            if ch["id"] == "water" and original_len >= 215 and start_date == end_date:
+                feeds = feeds[214:]
 
             ist = pytz.timezone('Asia/Kolkata')
             times = []
