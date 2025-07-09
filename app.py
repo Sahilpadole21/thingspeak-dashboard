@@ -24,13 +24,9 @@ refresh_interval = st.sidebar.selectbox("🔁 Auto Refresh Interval (min)", [Non
 if refresh_interval:
     st_autorefresh(interval=refresh_interval * 60 * 1000, key="autorefresh")
 
-# --- Threshold Settings (always editable) ---
-st.sidebar.markdown("### 🚨 Threshold Settings")
-thresholds = {
-    "water": st.sidebar.number_input("Water Level Threshold (cm)", min_value=0.0, value=100.0, key="thresh_water"),
-    "rain": st.sidebar.number_input("Rainfall Threshold (mm)", min_value=0.0, value=0.5, key="thresh_rain"),
-    "temp": st.sidebar.number_input("Temperature Threshold (°C)", min_value=0.0, value=30.0, key="thresh_temp")
-}
+# --- Threshold Setting (for water level only, always editable) ---
+st.sidebar.markdown("### 🚨 Threshold Setting")
+threshold = st.sidebar.number_input("Water Level Threshold (cm)", min_value=0.0, value=100.0, key="thresh_water")
 
 # --- Password Section ---
 st.sidebar.markdown("### 🔐 Advanced Settings")
@@ -188,15 +184,15 @@ for ch in channels:
                 yaxis=yaxis
             ))
 
-        # Threshold alerts and lines
-        alerts = df[df[ch["name"]] >= thresholds[ch["id"]]]
-        if not alerts.empty:
-            last = alerts.iloc[-1]
-            unit = "cm" if ch["id"] == "water" else "mm" if ch["id"] == "rain" else "°C"
-            st.error(f"🚨 ALERT: **{ch['name']}** = **{last[ch['name']]:.2f} {unit}** at {last['Time (IST)']}")
-        fig.add_hline(y=thresholds[ch["id"]], line=dict(color="red", dash="dash"),
-                      annotation_text=f"{ch['name']} Threshold: {thresholds[ch['id']]}",
-                      annotation_position="top left", yref=yaxis)
+        # Threshold alerts and line for water level only
+        if ch["id"] == "water":
+            alerts = df[df[ch["name"]] >= threshold]
+            if not alerts.empty:
+                last = alerts.iloc[-1]
+                st.error(f"🚨 ALERT: **{ch['name']}** = **{last[ch['name']]:.2f} cm** at {last['Time (IST)']}")
+            fig.add_hline(y=threshold, line=dict(color="red", dash="dash"),
+                          annotation_text=f"{ch['name']} Threshold: {threshold} cm",
+                          annotation_position="top left", yref="y1")
 
     except Exception as e:
         st.error(f"Error loading {ch['name']}: {e}")
