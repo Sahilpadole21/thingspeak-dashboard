@@ -47,8 +47,8 @@ else:
 channels = [
     {
         "name": "Drain Water Fill Level (cm)",
-        "channel_id": "2997622",
-        "api_key": "P8X877UO7IHF2HI4",
+        "channel_id": "2613741",
+        "api_key": "RQKUIUL7DWB7JV8H",
         "field": "field1",
         "color": "red",
         "apply_rolling_mean": authenticated,
@@ -65,8 +65,8 @@ channels = [
     },
     {
         "name": "Temperature Sensor (°C)",
-        "channel_id": "2997622",
-        "api_key": "P8X877UO7IHF2HI4",
+        "channel_id": "2613741",
+        "api_key": "RQKUIUL7DWB7JV8H",
         "field": "field2",
         "color": "green",
         "apply_rolling_mean": authenticated,
