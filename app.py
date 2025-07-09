@@ -39,7 +39,7 @@ if authenticated:
 else:
     threshold = 100.0
     rolling_window = 3
-    st.sidebar.info("🔒 Threshold & Rolling Mean are locked (enter password to edit)")
+    st.sidebar.info("🔒 Threshold & Rolling Mean are locked (entersticks)
 
 # --- Channels Config ---
 channels = [
@@ -153,22 +153,27 @@ for ch in channels:
         else:
             combined_df = pd.merge(combined_df, df, on="Time (IST)", how="outer")
 
+        # Plotting with secondary y-axis for rainfall sensor
         if sensor_display[ch["id"]]["raw"]:
+            yaxis = 'y2' if ch["id"] == "rain" else 'y1'
             fig.add_trace(go.Scatter(
                 x=df["Time (IST)"],
                 y=df[ch["name"]],
                 mode="lines+markers",
                 name=ch["name"],
-                line=dict(color=ch["color"])
+                line=dict(color=ch["color"]),
+                yaxis=yaxis
             ))
 
         if ch["apply_rolling_mean"] and sensor_display[ch["id"]]["roll"]:
+            yaxis = 'y2' if ch["id"] == "rain" else 'y1'
             fig.add_trace(go.Scatter(
                 x=df["Time (IST)"],
                 y=df[f"{ch['name']} - Rolling Mean"],
                 mode="lines+markers",
                 name=f"{ch['name']} (Rolling Avg)",
-                line=dict(color="orange", dash="dot")
+                line=dict(color="orange", dash="dot"),
+                yaxis=yaxis
             ))
 
         if ch["is_water_level"]:
@@ -187,8 +192,15 @@ for ch in channels:
 fig.update_layout(
     title="📈 Sensor Readings Over Time",
     xaxis_title="Time (IST)",
-    yaxis_title="Sensor Value (cm / mm / °C)",
-    hovermode="x unified"
+    yaxis_title="Water Level (cm) / Temperature (°C)",
+    yaxis2=dict(
+        title="Rainfall (mm)",
+        overlaying="y",
+        side="right",
+        showgrid=False
+    ),
+    hovermode="x unified",
+    showlegend=True
 )
 st.plotly_chart(fig, use_container_width=True)
 
@@ -197,154 +209,3 @@ if authenticated and not combined_df.empty:
     st.subheader("📅 Download Combined Sensor Data")
     csv = combined_df.sort_values("Time (IST)").to_csv(index=False)
     st.download_button("Download CSV", data=csv, file_name="combined_data.csv", mime="text/csv")
-
-# --- New Graph for Total Volume and Flowrate ---
-st.subheader("📊 Total Volume and Flowrate")
-
-# New channels for volume and flowrate
-new_channels = [
-    {
-        "name": "Channel 1",
-        "channel_id": "2386484",
-        "api_key": "97JX1RZK6KTXO14K",
-        "volume_fields": ["field7"],
-        "flowrate_fields": ["field1", "field3", "field5"],
-        "color": "purple"
-    },
-    {
-        "name": "Channel 2",
-        "channel_id": "2708884",
-        "api_key": "AETOH2AGT7L7O90D",
-        "volume_fields": ["field2", "field4", "field6"],
-        "flowrate_fields": ["field1", "field3", "field5", "field7"],
-        "color": "cyan"
-    },
-    {
-        "name": "Rain Gauge",
-        "channel_id": "2991850",
-        "api_key": "UK4DMEZEVVJB711E",
-        "volume_fields": [],
-        "flowrate_fields": [],
-        "color": "blue"
-    }
-]
-
-# Initialize DataFrame for new metrics
-volume_flow_df = pd.DataFrame()
-fig2 = go.Figure()
-
-# Load and process data for volume and flowrate
-for ch in new_channels:
-    try:
-        ist = pytz.timezone('Asia/Kolkata')
-        times = []
-        volume_values = []
-        flowrate_values = []
-
-        # Fetch data for each field
-        for field in set(ch["volume_fields"] + ch["flowrate_fields"]):
-            url = f"https://api.thingspeak.com/channels/{ch['channel_id']}/fields/{field[-1]}.json"
-            res = requests.get(url, params={"api_key": ch["api_key"], "start": start_str, "end": end_str})
-            feeds = res.json().get("feeds", [])
-
-            if not feeds:
-                continue
-
-            for entry in feeds:
-                raw_val = entry.get(field)
-                try:
-                    val = float(raw_val)
-                    timestamp = datetime.strptime(entry["created_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=pytz.utc).astimezone(ist)
-                    if timestamp not in times:
-                        times.append(timestamp)
-                    if field in ch["volume_fields"]:
-                        if len(volume_values) < len(times):
-                            volume_values.append(val)
-                        else:
-                            volume_values[-1] += val
-                    if field in ch["flowrate_fields"]:
-                        if len(flowrate_values) < len(times):
-                            flowrate_values.append(val)
-                        else:
-                            flowrate_values[-1] += val
-                except (TypeError, ValueError):
-                    continue
-
-        if not times:
-            st.warning(f"No valid data for {ch['name']}")
-            continue
-
-        # Pad lists if necessary
-        while len(volume_values) < len(times):
-            volume_values.append(0)
-        while len(flowrate_values) < len(times):
-            flowrate_values.append(0)
-
-        df = pd.DataFrame({
-            "Time (IST)": times,
-            f"{ch['name']} Volume": volume_values,
-            f"{ch['name']} Flowrate": flowrate_values
-        })
-
-        if volume_flow_df.empty:
-            volume_flow_df = df
-        else:
-            volume_flow_df = pd.merge(volume_flow_df, df, on="Time (IST)", how="outer")
-
-        # Add traces for volume and flowrate
-        if ch["volume_fields"]:
-            fig2.add_trace(go.Scatter(
-                x=df["Time (IST)"],
-                y=df[f"{ch['name']} Volume"],
-                mode="lines+markers",
-                name=f"{ch['name']} Volume",
-                line=dict(color=ch["color"])
-            ))
-        if ch["flowrate_fields"]:
-            fig2.add_trace(go.Scatter(
-                x=df["Time (IST)"],
-                y=df[f"{ch['name']} Flowrate"],
-                mode="lines+markers",
-                name=f"{ch['name']} Flowrate",
-                line=dict(color=ch["color"], dash="dash")
-            ))
-
-    except Exception as e:
-        st.error(f"Error loading {ch['name']}: {e}")
-
-# Plot combined volume and flowrate
-if not volume_flow_df.empty:
-    total_volume = volume_flow_df[[col for col in volume_flow_df.columns if "Volume" in col]].sum(axis=1)
-    total_flowrate = volume_flow_df[[col for col in volume_flow_df.columns if "Flowrate" in col]].sum(axis=1)
-    
-    volume_flow_df["Total Volume"] = total_volume
-    volume_flow_df["Total Flowrate"] = total_flowrate
-
-    fig2.add_trace(go.Scatter(
-        x=volume_flow_df["Time (IST)"],
-        y=volume_flow_df["Total Volume"],
-        mode="lines+markers",
-        name="Total Volume",
-        line=dict(color="orange")
-    ))
-    fig2.add_trace(go.Scatter(
-        x=volume_flow_df["Time (IST)"],
-        y=volume_flow_df["Total Flowrate"],
-        mode="lines+markers",
-        name="Total Flowrate",
-        line=dict(color="green", dash="dash")
-    ))
-
-    fig2.update_layout(
-        title="📈 Total Volume and Flowrate Over Time",
-        xaxis_title="Time (IST)",
-        yaxis_title="Value (Volume / Flowrate)",
-        hovermode="x unified"
-    )
-    st.plotly_chart(fig2, use_container_width=True)
-
-    # Download CSV for volume and flowrate
-    if authenticated:
-        st.subheader("📅 Download Volume and Flowrate Data")
-        csv2 = volume_flow_df.sort_values("Time (IST)").to_csv(index=False)
-        st.download_button("Download CSV", data=csv2, file_name="volume_flowrate_data.csv", mime="text/csv")
