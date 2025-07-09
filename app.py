@@ -87,7 +87,7 @@ devices = [
                 "name": "Water Fill Level (cm)",
                 "channel_id": "2613741",
                 "api_key": "RQKUIUL7DWB7JV8H",
-                "field": "field2",  # Changed to field2 for distance
+                "field": "field2",
                 "color": "red",
                 "apply_rolling_mean": authenticated,
                 "id": "water",
@@ -106,7 +106,7 @@ devices = [
                 "name": "Temperature (°C)",
                 "channel_id": "2613741",
                 "api_key": "RQKUIUL7DWB7JV8H",
-                "field": "field1",  # Changed to field1 for temperature
+                "field": "field1",
                 "color": "green",
                 "apply_rolling_mean": authenticated,
                 "id": "temp"
@@ -258,16 +258,12 @@ def plot_device_data(device, start_str, end_str, rolling_window, sensor_display)
 
     return fig, combined_df
 
-# --- Display Graphs Side by Side ---
-col1, col2 = st.columns(2)
+# --- Display Graphs Vertically ---
+fig1, df1 = plot_device_data(devices[0], start_str, end_str, rolling_window, sensor_display)
+st.plotly_chart(fig1, use_container_width=True)
 
-with col1:
-    fig1, df1 = plot_device_data(devices[0], start_str, end_str, rolling_window, sensor_display)
-    st.plotly_chart(fig1, use_container_width=True)
-
-with col2:
-    fig2, df2 = plot_device_data(devices[1], start_str, end_str, rolling_window, sensor_display)
-    st.plotly_chart(fig2, use_container_width=True)
+fig2, df2 = plot_device_data(devices[1], start_str, end_str, rolling_window, sensor_display)
+st.plotly_chart(fig2, use_container_width=True)
 
 # --- Download CSV ---
 if authenticated:
