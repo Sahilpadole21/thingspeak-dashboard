@@ -39,7 +39,7 @@ if pw_attempt == PASSWORD:
 
 # --- Rolling Mean (only editable if authenticated) ---
 if authenticated:
-    rolling_mean = st.sidebar.number_input("📊 Rolling Mean Window", min_value=1, max_value=100, value=5)
+    rolling_window = st.sidebar.number_input("📊 Rolling Mean Window", min_value=1, max_value=100, value=5)
 else:
     rolling_window = 3
     st.sidebar.info("🔒 Rolling Mean is locked (default: 3)")
@@ -87,7 +87,7 @@ devices = [
                 "name": "Water Fill Level (cm)",
                 "channel_id": "2613741",
                 "api_key": "RQKUIUL7DWB7JV8H",
-                "field": "field1",
+                "field": "field2",  # Changed to field2 for distance
                 "color": "red",
                 "apply_rolling_mean": authenticated,
                 "id": "water",
@@ -106,7 +106,7 @@ devices = [
                 "name": "Temperature (°C)",
                 "channel_id": "2613741",
                 "api_key": "RQKUIUL7DWB7JV8H",
-                "field": "field2",
+                "field": "field1",  # Changed to field1 for temperature
                 "color": "green",
                 "apply_rolling_mean": authenticated,
                 "id": "temp"
