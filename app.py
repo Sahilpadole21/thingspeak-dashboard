@@ -57,7 +57,7 @@ devices = [
                 "color": "red",
                 "apply_rolling_mean": authenticated,
                 "id": "water",
-                "water_level_calc": lambda x: 222 - x
+                "water_level_calc": lambda x: 214 - x
             },
             {
                 "name": "Rainfall (mm)",
