@@ -153,17 +153,26 @@ for ch in channels:
         else:
             combined_df = pd.merge(combined_df, df, on="Time (IST)", how="outer")
 
-        # Plotting with secondary y-axis for rainfall sensor
+        # Plotting with bar graph for rainfall sensor, line for others
         if sensor_display[ch["id"]]["raw"]:
             yaxis = 'y2' if ch["id"] == "rain" else 'y1'
-            fig.add_trace(go.Scatter(
-                x=df["Time (IST)"],
-                y=df[ch["name"]],
-                mode="lines+markers",
-                name=ch["name"],
-                line=dict(color=ch["color"]),
-                yaxis=yaxis
-            ))
+            if ch["id"] == "rain":
+                fig.add_trace(go.Bar(
+                    x=df["Time (IST)"],
+                    y=df[ch["name"]],
+                    name=ch["name"],
+                    marker=dict(color=ch["color"]),
+                    yaxis=yaxis
+                ))
+            else:
+                fig.add_trace(go.Scatter(
+                    x=df["Time (IST)"],
+                    y=df[ch["name"]],
+                    mode="lines+markers",
+                    name=ch["name"],
+                    line=dict(color=ch["color"]),
+                    yaxis=yaxis
+                ))
 
         if ch["apply_rolling_mean"] and sensor_display[ch["id"]]["roll"]:
             yaxis = 'y2' if ch["id"] == "rain" else 'y1'
