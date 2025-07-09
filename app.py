@@ -24,6 +24,14 @@ refresh_interval = st.sidebar.selectbox("🔁 Auto Refresh Interval (min)", [Non
 if refresh_interval:
     st_autorefresh(interval=refresh_interval * 60 * 1000, key="autorefresh")
 
+# --- Threshold Settings (always editable) ---
+st.sidebar.markdown("### 🚨 Threshold Settings")
+thresholds = {
+    "water": st.sidebar.number_input("Water Level Threshold (cm)", min_value=0.0, value=100.0, key="thresh_water"),
+    "rain": st.sidebar.number_input("Rainfall Threshold (mm)", min_value=0.0, value=0.5, key="thresh_rain"),
+    "temp": st.sidebar.number_input("Temperature Threshold (°C)", min_value=0.0, value=30.0, key="thresh_temp")
+}
+
 # --- Password Section ---
 st.sidebar.markdown("### 🔐 Advanced Settings")
 pw_attempt = st.sidebar.text_input("Enter Password", type="password")
@@ -32,14 +40,12 @@ if pw_attempt == PASSWORD:
     authenticated = True
     st.session_state.authenticated = True
 
-# --- Threshold & Rolling Mean (only editable if authenticated) ---
+# --- Rolling Mean (only editable if authenticated) ---
 if authenticated:
-    threshold = st.sidebar.number_input("🚨 Water Level Threshold (cm)", min_value=0.0, value=100.0)
     rolling_window = st.sidebar.number_input("📊 Rolling Mean Window", min_value=1, max_value=100, value=5)
 else:
-    threshold = 100.0
     rolling_window = 3
-    st.sidebar.info("🔒 Threshold & Rolling Mean are locked (enter password to edit)")
+    st.sidebar.info("🔒 Rolling Mean is locked (enter password to edit)")
 
 # --- Channels Config ---
 channels = [
@@ -49,8 +55,7 @@ channels = [
         "api_key": "P8X877UO7IHF2HI4",
         "field": "field1",
         "color": "red",
-        "apply_rolling_mean": authenticated,  # Rolling mean only if authenticated
-        "is_water_level": True,
+        "apply_rolling_mean": authenticated,
         "id": "water"
     },
     {
@@ -60,7 +65,6 @@ channels = [
         "field": "field2",
         "color": "blue",
         "apply_rolling_mean": False,
-        "is_water_level": False,
         "id": "rain"
     },
     {
@@ -69,8 +73,7 @@ channels = [
         "api_key": "P8X877UO7IHF2HI4",
         "field": "field2",
         "color": "green",
-        "apply_rolling_mean": authenticated,  # Rolling mean only if authenticated
-        "is_water_level": False,
+        "apply_rolling_mean": authenticated,
         "id": "temp"
     }
 ]
@@ -181,18 +184,19 @@ for ch in channels:
                 y=df[f"{ch['name']} - Rolling Mean"],
                 mode="lines+markers",
                 name=f"{ch['name']} (Rolling Avg)",
-                line=dict(color="orange", dash="dot"),
+                line=dict(color="#800080", dash="dot"),  # Purple for rolling mean
                 yaxis=yaxis
             ))
 
-        if ch["is_water_level"]:
-            alerts = df[df[ch["name"]] >= threshold]
-            if not alerts.empty:
-                last = alerts.iloc[-1]
-                st.error(f"🚨 ALERT: **{ch['name']}** = **{last[ch['name']]:.2f} cm** at {last['Time (IST)']}")
-            fig.add_hline(y=threshold, line=dict(color="red", dash="dash"),
-                          annotation_text=f"Threshold: {threshold} cm",
-                          annotation_position="top left")
+        # Threshold alerts and lines
+        alerts = df[df[ch["name"]] >= thresholds[ch["id"]]]
+        if not alerts.empty:
+            last = alerts.iloc[-1]
+            unit = "cm" if ch["id"] == "water" else "mm" if ch["id"] == "rain" else "°C"
+            st.error(f"🚨 ALERT: **{ch['name']}** = **{last[ch['name']]:.2f} {unit}** at {last['Time (IST)']}")
+        fig.add_hline(y=thresholds[ch["id"]], line=dict(color="red", dash="dash"),
+                      annotation_text=f"{ch['name']} Threshold: {thresholds[ch['id']]}",
+                      annotation_position="top left", yref=yaxis)
 
     except Exception as e:
         st.error(f"Error loading {ch['name']}: {e}")
