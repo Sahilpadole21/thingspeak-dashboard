@@ -39,7 +39,7 @@ if authenticated:
 else:
     threshold = 100.0
     rolling_window = 3
-    st.sidebar.info("🔒 Threshold & Rolling Mean are locked (entersticks)
+    st.sidebar.info("🔒 Threshold & Rolling Mean are locked (enter password to edit)")
 
 # --- Channels Config ---
 channels = [
