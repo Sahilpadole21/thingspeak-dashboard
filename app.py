@@ -57,7 +57,7 @@ devices = [
                 "color": "red",
                 "apply_rolling_mean": authenticated,
                 "id": "water",
-                "water_level_calc": lambda x: 214 - x
+                "water_level_calc": lambda x: 206 - x
             },
             {
                 "name": "Rainfall (mm)",
@@ -161,8 +161,8 @@ def plot_device_data(device, start_str, end_str, rolling_window, sensor_display)
             feeds = res.json().get("feeds", [])
 
             original_len = len(feeds)
-            if ch["id"] == "water" and original_len >= 215 and start_date == end_date:
-                feeds = feeds[214:]
+            if ch["id"] == "water" and original_len >= 207 and start_date == end_date:
+                feeds = feeds[206:]
 
             ist = pytz.timezone('Asia/Kolkata')
             times = []
