@@ -56,7 +56,7 @@ devices = [
                 "color": "red",
                 "apply_rolling_mean": authenticated,
                 "id": "water",
-                "water_level_calc": lambda x: 3002 - x
+                "water_level_calc": lambda x: 300 - x
             },
             {
                 "name": "Rainfall (mm)",
@@ -127,7 +127,7 @@ def plot_device_data(device, start_str, end_str, rolling_window, sensor_display)
 
             original_len = len(feeds)
             if ch["id"] == "water" and original_len >= 301 and start_date == end_date:
-                feeds = feeds[3002:]
+                feeds = feeds[300:]
 
             ist = pytz.timezone('Asia/Kolkata')
             times = []
@@ -229,8 +229,7 @@ st.plotly_chart(fig1, use_container_width=True)
 
 # --- Download CSV ---
 if authenticated:
-    st.subheader("📅 Download Combined Sensor Data")
-    df = df1
-    if not df.empty:
-        csv = df.sort_values("Time (IST)").to_csv(index=False)
-        st.download_button(f"Download {devices[0]['name']} CSV", data=csv, file_name=f"{devices[0]['name'].lower().replace(' ', '_')}_data.csv", mime="text/csv")
+    st.subheader("📅 Download Sensor Data")
+    if not df1.empty:
+        csv = df1.sort_values("Time (IST)").to_csv(index=False)
+        st.download_button(f"Download Device 1 CSV", data=csv, file_name="device_1_data.csv", mime="text/csv")
