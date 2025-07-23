@@ -24,10 +24,9 @@ refresh_interval = st.sidebar.selectbox("🔁 Auto Refresh Interval (min)", [Non
 if refresh_interval:
     st_autorefresh(interval=refresh_interval * 60 * 1000, key="autorefresh")
 
-# --- Threshold Settings (one per device) ---
+# --- Threshold Settings (only for Device 1) ---
 st.sidebar.markdown("### 🚨 Threshold Settings")
 threshold_device1 = st.sidebar.number_input("Device 1 Water Level Threshold (cm)", min_value=0.0, value=100.0, key="thresh_water_device1")
-threshold_device2 = st.sidebar.number_input("Device 2 Water Level Threshold (cm)", min_value=0.0, value=100.0, key="thresh_water_device2")
 
 # --- Password Section ---
 st.sidebar.markdown("### 🔐 Advanced Settings")
@@ -44,7 +43,7 @@ else:
     rolling_window = 3
     st.sidebar.info("🔒 Rolling Mean is locked (default: 3)")
 
-# --- Channels Configuration ---
+# --- Channels Configuration (only Device 1) ---
 devices = [
     {
         "name": "Device 1",
@@ -57,7 +56,7 @@ devices = [
                 "color": "red",
                 "apply_rolling_mean": authenticated,
                 "id": "water",
-                "water_level_calc": lambda x: 222 - x
+                "water_level_calc": lambda x: 3002 - x
             },
             {
                 "name": "Rainfall (mm)",
@@ -79,40 +78,6 @@ devices = [
             }
         ],
         "threshold": threshold_device1
-    },
-    {
-        "name": "Device 2",
-        "channels": [
-            {
-                "name": "Water Fill Level (cm)",
-                "channel_id": "2613741",
-                "api_key": "RQKUIUL7DWB7JV8H",
-                "field": "field2",
-                "color": "red",
-                "apply_rolling_mean": authenticated,
-                "id": "water",
-                "water_level_calc": lambda x: 269 - x
-            },
-            {
-                "name": "Rainfall (mm)",
-                "channel_id": "2991850",
-                "api_key": "UK4DMEZEVVJB711E",
-                "field": "field2",
-                "color": "blue",
-                "apply_rolling_mean": False,
-                "id": "rain"
-            },
-            {
-                "name": "Temperature (°C)",
-                "channel_id": "2613741",
-                "api_key": "RQKUIUL7DWB7JV8H",
-                "field": "field1",
-                "color": "green",
-                "apply_rolling_mean": authenticated,
-                "id": "temp"
-            }
-        ],
-        "threshold": threshold_device2
     }
 ]
 
@@ -161,8 +126,8 @@ def plot_device_data(device, start_str, end_str, rolling_window, sensor_display)
             feeds = res.json().get("feeds", [])
 
             original_len = len(feeds)
-            if ch["id"] == "water" and original_len >= 223 and start_date == end_date:
-                feeds = feeds[222:]
+            if ch["id"] == "water" and original_len >= 301 and start_date == end_date:
+                feeds = feeds[3002:]
 
             ist = pytz.timezone('Asia/Kolkata')
             times = []
@@ -258,18 +223,14 @@ def plot_device_data(device, start_str, end_str, rolling_window, sensor_display)
 
     return fig, combined_df
 
-# --- Display Graphs Vertically ---
+# --- Display Graph for Device 1 ---
 fig1, df1 = plot_device_data(devices[0], start_str, end_str, rolling_window, sensor_display)
 st.plotly_chart(fig1, use_container_width=True)
-
-fig2, df2 = plot_device_data(devices[1], start_str, end_str, rolling_window, sensor_display)
-st.plotly_chart(fig2, use_container_width=True)
 
 # --- Download CSV ---
 if authenticated:
     st.subheader("📅 Download Combined Sensor Data")
-    for device in devices:
-        df = df1 if device["name"] == "Device 1" else df2
-        if not df.empty:
-            csv = df.sort_values("Time (IST)").to_csv(index=False)
-            st.download_button(f"Download {device['name']} CSV", data=csv, file_name=f"{device['name'].lower().replace(' ', '_')}_data.csv", mime="text/csv")
+    df = df1
+    if not df.empty:
+        csv = df.sort_values("Time (IST)").to_csv(index=False)
+        st.download_button(f"Download {devices[0]['name']} CSV", data=csv, file_name=f"{devices[0]['name'].lower().replace(' ', '_')}_data.csv", mime="text/csv")
